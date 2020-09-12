@@ -2,274 +2,233 @@
 #include<unordered_map>
 #include<unordered_set>
 #include<set>
-#include<map>
-#include<queue>
 #include<vector>
 #include<algorithm>
 #include<fstream>
+#include<string>
 #include<ctime>
 using namespace std;
 
-//#define DEBUG
-
 ifstream fin("/data/test_data.txt", ios::in);
-FILE *fout = fopen("/projects/student/result.txt", "w");
+ofstream fout("/projects/student/result.txt");
 
-
-struct Edge {
-	int u;
-	int v;
-	Edge(int _u, int _v) :u(_u), v(_v) {};
-};
-
-//ÓĞÏòÍ¼µÄÁÚ½Ó±í½á¹¹
+//æœ‰å‘å›¾çš„é‚»æ¥è¡¨ç»“æ„
 struct Node
 {
 	int v;
 	Node* next;
-	Node(int _v,Node* _next) :v(_v), next(_next) {};
+	Node(int _v) :v(_v), next(nullptr) {};
 };
-
 struct Hnode
 {
-	Node *first;		//±£´æÁÚ½Ó±í
+	Node *first;
 };
 
-struct TmpAns
+//tarjanç®—æ³•æ‰€éœ€çš„æ•°æ®ç»“æ„
+struct runTimeData
 {
-	int a, b, c;
-	TmpAns(int _a, int _b, int _c) :a(_a), b(_b), c(_c) {};
-};
-//ÍØÆËÅÅĞòËùĞèµÄÊı¾İ½á¹¹
-struct Data
-{
-	bool isUsed;		//ÊÇ·ñ±»·ÃÎÊ
-	bool Out;			//³ö±ßÊÇ·ñ£¬Âú×ãÒªÇó
-	bool In;			//Èı²ãËÑË÷µÄÈë±ßÊÇ·ñÂú×ãÒªÇó
-	int indg;			//Èë¶ÈÊıÁ¿
-	Data() :isUsed(false),Out(false),In(false),indg(0) {};
+	bool isVisited;
+	int dfn;
+	int low;
+	runTimeData() :isVisited(false), dfn(0), low(0) {};
 };
 
-unordered_map<int, Hnode> graph;					//Èç¹û´æÔÚ±ß
-unordered_map<int, Data> state;						//Í¼ÖĞ½áµãµÄ×´Ì¬
-unordered_map<int, unordered_set<int>> cycleArc;	//¼ÇÂ¼»·»¡µÄ Æğµã¶ÔÓ¦µÄÖÕµã
-unordered_map<int, unordered_map<int, vector<TmpAns>>>  Answer;     //´æ´¢´ğ°¸
-vector<Edge> EdgeVec;								//±ß¼¯ºÏ
-set<int> reCycleArc;                                //¼ÇÂ¼»·»¡µÄÖÕµã£¨¼´ËÑË÷µÄÆğµã£©
-vector<int> st;										//Ä£ÄâÕ»
-int id=0,sum = 0,mod=0;
+unordered_map<int, Hnode> graph;		//å¦‚æœå­˜åœ¨è¾¹u--->v åˆ™graph[u].contains(v)
+unordered_map<int, Hnode> Sccgraph;		//å¼ºè¿é€šåˆ†é‡å­å›¾
+unordered_map<int, Hnode> reSccgraph;	//å¼ºè¿é€šåˆ†é‡å­å›¾çš„é€†è¾¹å›¾
+unordered_map<int, runTimeData> state;	//å›¾ä¸­ç»“ç‚¹çš„çŠ¶æ€
+unordered_map<int, unordered_set<int>> cycleArcIn;		//è®°å½•ç¯å¼§çš„ ç»ˆç‚¹å¯¹åº”çš„èµ·ç‚¹
+unordered_map<int, unordered_map<int, unordered_set<int>>> previousAns;		//é€†è¾¹å›¾éå†ä¸¤å±‚çš„ç»“æœ
+vector<int> st;							//æ¨¡æ‹Ÿæ ˆ
+vector<vector<int>> scc;				//å­˜å‚¨å¼ºè¿é€šåˆ†é‡ä¸­çš„ç»“ç‚¹
+vector<int> tmpvec;						//ä¸´æ—¶æ•°ç»„
+unordered_set<int> mySet;
+int num, curNode;
 
-//Ö±½Ó·ÖÅä5¸ö¿Õ¼ä
-vector<vector<int>> res(5,vector<int>());	
-int tab[5] = { 3,4,5,6,7 };
-int key_tab[8] = { 0,0,0,0,1,2,3,4 };
-
-struct EdgeSort
-{//ÅÅĞò±ß¼¯ºÏ
-	inline bool operator() (const Edge &e1, const Edge &e2) const {
-		//ÆğÊ¼µãÏàÍ¬Ê±£¬½áÎ²µã´óµÄÅÅÔÚÇ°Ãæ£¬ÒòÎªÁÚ½Ó±í²ÉÓÃÇ°²å·¨¹¹½¨
-		return e1.u == e2.u ? (e1.v > e2.v) : (e1.u < e2.u);
+//å­—å…¸åºæ’åºç»“æœ
+struct vectorComp {
+	bool operator() (const vector<int> &v1, const vector<int> &v2) const {
+		if (v1.size() == v2.size())
+			return lexicographical_compare(v1.begin(), v1.end(), v2.begin(), v2.end());
+		return v1.size() < v2.size();
 	}
 };
+set<vector<int>, vectorComp> res;
 
-
-void TopologySort()
-{//ÍØÆËÅÅĞò£¬È¥µô¶àÓà½áµã,ÆäĞ§¹ûºÍÊ±¼äÓëTarjanËã·¨²î²»¶à£¬µ«¸üÎª¼òµ¥
-	queue<int> q;
-	for (auto it = graph.begin(); it != graph.end();it++)
+//Tarjanç®—æ³•æ±‚å¼ºè¿é€šåˆ†é‡
+void Tarjan(int x)
+{
+	state[x].dfn = state[x].low = ++num;
+	st.push_back(x), state[x].isVisited = true;
+	int node;
+	for (Node *it = graph[x].first; it; it = it->next)
 	{
-		if (state[it->first].indg == 0)
-			q.push(it->first);			    //½«Èë¶ÈÎª0µÄ½áµãÈë¶Ó,graphÖĞ½áµã³ö¶ÈÎŞĞè¿¼ÂÇ
-	}
-	int cur;
-	while (!q.empty())
-	{							//¹ã¶ÈÓÅÏÈËÑË÷
-		cur = q.front();
-		q.pop();				//³ö¶Ó¶ÓÊ×ÔªËØ
-		for (Node *ptr = graph[cur].first; ptr; ptr = ptr->next)
-		{						//ÁÚ½ÓµãµÄÈë¶È¼õ1
-			if (graph.find(ptr->v)==graph.end())  //Í¼ÖĞ²»´æÔÚµÄµã£¬¿ÉÄÜÊÇ³ö¶ÈÎª0µÄµã
-				continue;		                //ÎªÒÑ¾­É¾³ıµÄ½áµã£¬ÎŞĞè·ÃÎÊ
-			if ((--state[ptr->v].indg) == 0)          //ÔÙ´Î½«Èë¶ÈÎª0µÄ½áµãÈë¶Ó
-				q.push(ptr->v);
-		}
-		graph.erase(cur);		                //³ö¶ÓµÄÔªËØ±ØÈ»¹¹²»³É»·£¬½«ÆäÉ¾³ı
-		state[cur].isUsed = true;
-		if (reCycleArc.find(cur) != reCycleArc.end())   //É¾³ı²»¿ÉÄÜµÄÆğÊ¼µã
-			reCycleArc.erase(cur);
-	}
-}
-
-void predfs(int v)
-{
-	if (st.size()==2 && cycleArc.find(v) != cycleArc.end())
-	{//°üº¬»·»¡µÄÆğÊ¼µã
-		for (auto it = cycleArc[v].begin(); it != cycleArc[v].end(); it++)
-		{//±éÀú»·»¡µÄÖÕµã
-			if (!state[*it].Out ||st[1]<=*it)
-				continue;
-			if (!state[*it].In)
-				state[*it].In = true;
-			Answer[*it][st[0]].emplace_back(st[0],st[1],v);		
-		}
-	}
-	if (st.size() == 2)			//Êµ¼ÊÒÑ¾­ÊÇµÚÈı²ãÁË£¬ÍË³ö
-		return;
-	st.emplace_back(v);
-	state[v].isUsed = true;
-	for (Node *ptr = graph[v].first; ptr; ptr = ptr->next)
-	{//±éÀúvµÄ×Ó½Úµã
-		if (graph.find(v)!=graph.end() && state[ptr->v].isUsed)
-			continue;
-		if (!state[ptr->v].isUsed)
+		node = it->v;
+		if (!state[node].dfn)
 		{
-			predfs(ptr->v);
+			Tarjan(node);
+			state[x].low = min(state[x].low, state[node].low);
+		}
+		else if (state[node].isVisited)
+		{
+			state[x].low = min(state[x].low, state[node].dfn);
 		}
 	}
-	st.pop_back();
-	state[v].isUsed = false;
-}
-
-
-//ÇóÒÔvÎªÆğÊ¼µãµÄ»ØÂ·
-void findCircuit(int cur,const int & start)
-{
-	if (Answer[start].find(cur) != Answer[start].end())
+	if (state[x].dfn == state[x].low)
 	{
-		for (const TmpAns & vec : Answer[start][cur])
+		if (st.back() == x)
 		{
-			if (state[vec.a].isUsed || state[vec.b].isUsed || state[vec.c].isUsed)
-				continue;
-			sum++;
+			st.pop_back();
+			state[x].isVisited = false;
+			return;
+		}
+		do
+		{
+			curNode = st.back();
+			st.pop_back();
+			state[curNode].isVisited = false;
+			tmpvec.push_back(curNode);
+			mySet.insert(curNode);
+		} while (x != curNode);
 
-			id = key_tab[st.size()+3];	//¼ÆËã½á¹ûµÄ×Ü³¤¶È
-			for (int j = 0,Size=st.size(); j < Size; j++)
+		if (tmpvec.size() >= 3)
+		{
+			sort(tmpvec.begin(), tmpvec.end());   //ä»å°åˆ°å¤§æ’åº
+			for (auto it = tmpvec.begin(); it != tmpvec.end();it++)
 			{
-				res[id].emplace_back(st[j]);
+				int u = *it;
+				for (Node *ptr = graph[u].first; ptr; ptr = ptr->next)
+				{
+					int v = ptr->v;
+					if (mySet.find(v)!=mySet.end())
+					{//  *iter--->(ptr->v),æŒ‡é’ˆå’Œè¿­ä»£å™¨çš„è®¿é—®ä¼šè€—æ—¶
+						Node *q = new Node(v);		//ä¿å­˜å¼ºè¿é€šåˆ†é‡å­å›¾
+						q->next = Sccgraph[u].first;
+						Sccgraph[u].first = q;
+
+						if (v < u)
+						{//ä¿å­˜å¼ºè¿é€šåˆ†é‡ä¸­çš„ ç¯å¼§çš„ç»ˆç‚¹å’Œèµ·ç‚¹,
+							cycleArcIn[v].insert(u);
+						}
+
+						Node *p = new Node(u);		//ä¿å­˜å¼ºè¿é€šåˆ†é‡å­å›¾ä¸­çš„é€†è¾¹å›¾
+						p->next = reSccgraph[v].first;
+						reSccgraph[v].first = p;
+					}
+				}
 			}
-			res[id].emplace_back(vec.a);
-			res[id].emplace_back(vec.b);
-			res[id].emplace_back(vec.c);
+			scc.emplace_back(tmpvec);
+			tmpvec.clear();
+		}
+		mySet.clear();
+	}
+}
+
+//v:å½“å‰æ­£åœ¨è®¿é—®çš„ç»“ç‚¹ï¼ŒstNodeï¼šè·¯å¾„çš„å¼€å§‹ç»“ç‚¹ï¼Œpath:å­˜å‚¨è·¯å¾„ï¼ŒS:æ ‡è®°è·¯å¾„ä¸Šå·²è®¿é—®çš„ç»“ç‚¹
+void circuit(int v)
+{
+	st.push_back(v);
+	if (st.size() >= 2 && previousAns.count(v) && previousAns[v].count(st[0]))
+	{
+		for (const int & e : previousAns[v][st[0]])
+		{
+			if (!state[e].isVisited)
+			{//æœªè®¿é—®è¿‡
+				st.push_back(e);
+				res.insert(st);
+				st.pop_back();
+			}
 		}
 	}
-	if (st.size() == 4)
+	if (st.size() == 6)
+	{//6å±‚å‰ªæ
+		st.pop_back();
 		return;
-	st.emplace_back(cur);
-	state[cur].isUsed = true;
-	for (Node *ptr = graph[cur].first; ptr; ptr = ptr->next)
-	{
-		if (ptr->v <= start || state[ptr->v].isUsed)
+	}
+	state[v].isVisited = true;
+	int node;
+	for (Node *it = Sccgraph[v].first; it; it = it->next)
+	{//åœ¨å¼ºè¿é€šåˆ†é‡å­å›¾ä¸­æœç´¢
+		node = it->v;
+		if (node <= st[0])
 			continue;
-		if (!state[ptr->v].isUsed)
-		{
-			findCircuit(ptr->v,start);
-		}
+		else if (!state[node].isVisited)
+			circuit(node);	//æ²¡æœ‰è®¿é—®ï¼Œåˆ™å¼€å§‹å¯»æ‰¾å›è·¯
 	}
 	st.pop_back();
-	state[cur].isUsed = false;
+	state[v].isVisited = false;
 }
 
 
 int main()
 {
-#ifdef DEBUG
-	clock_t startTime, endTime;
-	startTime = clock();
-#endif
-	res[0].reserve(1200000);//3
-	res[1].reserve(1600000);//4
-	res[2].reserve(4500000);//5
-	res[3].reserve(6000000);//6
-	res[4].reserve(14000000);//7
-
-	//1.¶ÁÈ¡ÎÄ¼şÄÚÈİ£¬¹¹ÔìÔ­Ê¼Í¼
-	EdgeVec.reserve(280000);
+	//clock_t startTime, endTime;
+	//startTime = clock();
+	//1.è¯»å–æ–‡ä»¶å†…å®¹ï¼Œæ„é€ åŸå§‹å›¾
 	int u, v, w;
 	char c;
 	while (fin >> u >> c >> v >> c >> w)
-	{//±ß  u---->v
-		if (v < u)
-		{
-			cycleArc[u].insert(v);			//±£´æ»·»¡
-			reCycleArc.insert(v);			//±£´æ»·»¡µÄÖÕµã£¬ÊÇÒªËÑË÷µÄÆğµã
-		}
-		else if (!state[u].Out)
-			state[u].Out = true;
-		state[v].indg++;
-		EdgeVec.emplace_back(u,v);		
+	{//è¾¹  u---->v
+		Node *q = new Node(v);		//ä¿å­˜åŸå§‹å›¾
+		q->next = graph[u].first;
+		graph[u].first = q;
 	}
-	sort(EdgeVec.begin(), EdgeVec.end(), EdgeSort());		//ÅÅĞò±ß¼¯
-	EdgeVec.shrink_to_fit();			//ÊÕËõµ½ÊÊµ±·¶Î§
-	Node *q=nullptr;
-	for (int i = 0,Size= EdgeVec.size(); i < Size; i++)
-	{
-		q = new Node(EdgeVec[i].v, graph[EdgeVec[i].u].first);//¹¹ÔìÁÚ½Ó±í
-		graph[EdgeVec[i].u].first = q;						//ÔÚgraphÖĞµÄ£¬³ö¶È±ØÈ»´óÓÚ0,²»ÓÃÍ³¼Æ
-	}
+	//endTime = clock();
+	//cout << "Read file: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
 
-#ifdef DEBUG
-	endTime = clock();
-	cout << "Read finished: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
-#endif
 
-	//2.ÍØÆËÅÅĞòÈ¥³ı¶àÓà½áµã
-	TopologySort();
-
-#ifdef DEBUG
-	endTime = clock();
-	cout << "TopologySort finished: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-
-	//3.¿ªÊ¼²éÕÒ»·Ëã·¨
-	st.reserve(2);
+	//2.åˆ©ç”¨tarjanç®—æ³•ï¼Œæ±‚å¼ºè¿é€šåˆ†é‡
 	for (auto it = graph.begin(); it != graph.end(); it++)
-	{//Ô¤ÏÈ½øĞĞÉîËÑ
-		predfs(it->first);
+	{
+		if (!state[it->first].dfn)
+			Tarjan(it->first);
 	}
 
-	//3.2 ÕÒ»·
-	st.reserve(4);
-	for (const int &i:reCycleArc)
-	{
-		if (state[i].Out && state[i].In)
-		{
-			findCircuit(i, i);
-		}
-	}
-
-#ifdef DEBUG
-	endTime = clock();
-	cout << "FindCircuit finished: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
-#endif
-
-	for (int i = 0; i < 5; i++)
-	{
-		res[i].shrink_to_fit();
-	}
-
-	//4.Êä³ö½á¹û
-	fprintf(fout, "%d\n", sum);
-	for (int i = 0; i < 5; i++)
-	{
-		mod = tab[i] - 1;
-		for (int j = 0,Size= res[i].size(); j <Size; j++)
-		{
-			if (j%tab[i] == mod)
-			{
-				fprintf(fout, "%d\n", res[i][j]);
-				continue;
+	for (auto it = cycleArcIn.begin(); it != cycleArcIn.end(); it++)
+	{//ä»ç¯å¼§çš„ç»ˆç‚¹å¼€å§‹éå†
+		for (const int & e : it->second)
+		{//éå†ç¯å¼§çš„èµ·ç‚¹
+			for (Node *pNode = reSccgraph[e].first; pNode; pNode = pNode->next)
+			{//éå†ç¯å¼§èµ·ç‚¹çš„ä¸Šä¸€å±‚çˆ¶èŠ‚ç‚¹
+				if (pNode->v > it->first)
+					previousAns[pNode->v][it->first].insert(e);
 			}
-			fprintf(fout, "%d,", res[i][j]);
 		}
 	}
-	fclose(fout);
-	fin.close();
+	//3.å¼€å§‹æŸ¥æ‰¾ç¯
+	st.clear();
+	for (int i = 0; i < (int)scc.size(); i++)
+	{
+		for (int j = 0; j + 2< (int)scc[i].size(); j++)
+		{//éå†å¼ºè¿é€šåˆ†é‡ä¸­å±äº ç¯å¼§ç»ˆç‚¹çš„ç»“ç‚¹
+			if (cycleArcIn.find(scc[i][j]) != cycleArcIn.end())
+				circuit(scc[i][j]);
+		}
+	}
 
-#ifdef DEBUG
-	endTime = clock();
-	cout << "Output file: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
-#endif
+	//endTime = clock();
+	//cout << "Calculation finished: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
+
+	//4.è¾“å‡ºç»“æœ
+	fout << res.size() << endl;
+	for (auto & v : res)
+	{
+		int j = 0;
+		for (; j + 1< (int)v.size(); j++)
+		{
+			fout << v[j] << ",";
+		}
+		fout << v[j] << endl;
+	}
+	fout.close();
+
+	//endTime = clock();
+	//cout << "Output file: " << (double)(endTime - startTime) / CLOCKS_PER_SEC << "s" << endl;
 
 	return 0;
 }
+
+
+
+
 
