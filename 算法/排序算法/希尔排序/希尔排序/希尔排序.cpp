@@ -1,4 +1,4 @@
-// Ï£¶ûÅÅĞò.cpp : ¶¨Òå¿ØÖÆÌ¨Ó¦ÓÃ³ÌĞòµÄÈë¿Úµã¡£
+// å¸Œå°”æ’åº.cpp : å®šä¹‰æ§åˆ¶å°åº”ç”¨ç¨‹åºçš„å…¥å£ç‚¹ã€‚
 //
 
 #include "stdafx.h"
@@ -23,13 +23,13 @@ int main()
 		input >> nums[i];
 	}
 
-	//Ã¿´ÎÅÅĞò¼ä¸ôinterval¸öÔªËØµÄÔªËØ
+	//æ¯æ¬¡æ’åºé—´éš”intervalä¸ªå…ƒç´ çš„å…ƒç´ 
 	for (int interval = size/2; interval > 0; interval /= 2) {
-		//´Óstart¿ªÊ¼£¬Ã¿¸ôinterval¸öÔªËØ½øĞĞÅÅĞò£¬²ÉÓÃµÄÑ¡ÔñÅÅĞò
+		//ä»startå¼€å§‹ï¼Œæ¯éš”intervalä¸ªå…ƒç´ è¿›è¡Œæ’åºï¼Œé‡‡ç”¨çš„é€‰æ‹©æ’åº
 		for (int start = interval; start < size; start++) {
 			int index=start,val = nums[start];
-			//Ñ°ÕÒ²åÈëÎ»ÖÃ£¬Í¬Ê±½«ÔªËØºóÒÆ
-			while (index - interval >= 0 && val > nums[index - interval]) {
+			//å¯»æ‰¾æ’å…¥ä½ç½®ï¼ŒåŒæ—¶å°†å…ƒç´ åç§»
+			while (index - interval >= 0 && val < nums[index - interval]) {
 				nums[index] = nums[index - interval];
 				index -= interval;
 			}
